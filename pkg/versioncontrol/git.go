@@ -1,106 +1,124 @@
 package versioncontrol
 
 import (
+	"errors"
 	"fmt"
 	"github.com/go-git/go-git/v5"
-	"github.com/go-git/go-git/v5/plumbing/object"
+	"github.com/go-git/go-git/v5/config"
+	"github.com/go-git/go-git/v5/plumbing"
 	gitssh "github.com/go-git/go-git/v5/plumbing/transport/ssh"
 	"golang.org/x/crypto/ssh"
 	"log"
 	"os"
+	"sync"
 )
 
-func Clone(url, path string, privateKey []byte) (*git.Repository, error) {
-	signer, err := ssh.ParsePrivateKey(privateKey)
+type GitClientConfig struct {
+	Url        string
+	Path       string
+	PrivateKey []byte
+}
+
+type GitClient struct {
+	repo  *git.Repository
+	path  string
+	mutex sync.Mutex
+}
+
+func NewGitClient(config *GitClientConfig) (*GitClient, error) {
+
+	if config == nil {
+		return nil, errors.New("no git configuration provided")
+	}
+
+	if err := clearWorkingDir(config.Path); err != nil {
+		return nil, err
+	}
+
+	options := &git.CloneOptions{
+		URL:      config.Url,
+		Progress: os.Stdout,
+	}
+
+	if config.PrivateKey != nil {
+		signer, err := ssh.ParsePrivateKey(config.PrivateKey)
+		if err != nil {
+			return nil, err
+		}
+
+		options.Auth = &gitssh.PublicKeys{
+			User:   "git",
+			Signer: signer,
+		}
+	}
+
+	repo, err := git.PlainClone(config.Path, false, options)
+	if err != nil {
+		return nil, err
+	}
+
+	return &GitClient{
+		repo:  repo,
+		path:  config.Path,
+		mutex: sync.Mutex{},
+	}, nil
+}
+
+func (client *GitClient) Checkout(branch string) error {
+
+	err := client.repo.Fetch(&git.FetchOptions{
+		RefSpecs: []config.RefSpec{"refs/*:refs/*", "HEAD:refs/heads/HEAD"},
+	})
 	if err != nil {
 		fmt.Println(err)
 	}
 
-	auth := &gitssh.PublicKeys{User: "git", Signer: signer}
-
-	return git.PlainClone(path, false, &git.CloneOptions{
-		URL:      url,
-		Progress: os.Stdout,
-		Auth:     auth,
-	})
-}
-
-func HasDiff(repo *git.Repository, fileName string) (*bool, error) {
-	commits, err := repo.Log(&git.LogOptions{
-		FileName: &fileName,
-	})
-
-	if err != nil {
-		return nil, err
-	}
-	defer commits.Close()
-
-	var hasDiff bool
-	var retErr error
-	var prevCommit *object.Commit
-	var prevTree *object.Tree
-
-	for {
-		commit, err := commits.Next()
-		if err != nil {
-			break
-		}
-		currentTree, err := commit.Tree()
-		if err != nil {
-			retErr = err
-			break
-		}
-
-		if prevCommit == nil {
-			prevCommit = commit
-			prevTree = currentTree
-			continue
-		}
-
-		changes, err := currentTree.Diff(prevTree)
-		if err != nil {
-			retErr = err
-			break
-		}
-
-		for _, c := range changes {
-			if c.To.Name == fileName {
-				hasDiff = true
-				break
-			}
-		}
-
-		prevCommit = commit
-		prevTree = currentTree
-	}
-
-	if retErr != nil {
-		return nil, retErr
-	}
-
-	return &hasDiff, nil
-}
-
-func Pull(repo *git.Repository) error {
-	// Get the working directory for the repository
-	w, err := repo.Worktree()
+	workTree, err := client.repo.Worktree()
 	if err != nil {
 		return err
 	}
 
-	// Pull the latest changes from the origin remote and merge into the current branch
-	err = w.Pull(&git.PullOptions{RemoteName: "origin"})
+	client.mutex.Lock()
+	err = workTree.Checkout(&git.CheckoutOptions{
+		Branch: plumbing.ReferenceName(fmt.Sprintf("refs/heads/%s", branch)),
+		Force:  true,
+	})
+	client.mutex.Unlock()
+
+	return err
+}
+
+func (client *GitClient) Pull() error {
+
+	workTree, err := client.repo.Worktree()
 	if err != nil {
+		return err
+	}
+
+	client.mutex.Lock()
+	// Pull the latest changes from the origin remote and merge into the current branch
+	err = workTree.Pull(&git.PullOptions{
+		RemoteName: "origin",
+	})
+	if err != nil {
+		client.mutex.Unlock()
 		return err
 	}
 
 	// Print the latest commit that was just pulled
-	ref, err := repo.Head()
+	ref, err := client.repo.Head()
 	if err != nil {
+		client.mutex.Unlock()
 		return err
 	}
 
-	commit, err := repo.CommitObject(ref.Hash())
+	commit, err := client.repo.CommitObject(ref.Hash())
+	if err != nil {
+		client.mutex.Unlock()
+		return err
+	}
+
+	client.mutex.Unlock()
 	log.Printf("latest commit -> %v", commit)
-	return err
+	return nil
 }
