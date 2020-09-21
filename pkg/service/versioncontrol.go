@@ -34,19 +34,25 @@ func (svc *VersionControl) Pull() error {
 
 func (svc *VersionControl) PollRepository(interval time.Duration) error {
 
+	done := make(chan bool)
 	ticker := time.NewTicker(1 * time.Second)
-	go func() {
-		for t := range ticker.C {
-			_ = t // we don't print the ticker time, so assign this `t` variable to underscore `_` to avoid error
 
-			err := svc.versionControlClient.Pull()
-			if err != nil {
-				log.Println(err)
+	go func() {
+		for {
+			select {
+			case <-done:
+				ticker.Stop()
+				return
+			case <-ticker.C:
+				err := svc.versionControlClient.Pull()
+				if err != nil {
+					log.Println(err)
+				}
 			}
 		}
 	}()
 
 	time.Sleep(interval)
-	ticker.Stop()
+	done <- true
 	return nil
 }
