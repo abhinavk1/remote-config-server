@@ -9,7 +9,8 @@ import (
 )
 
 type AbstractConfiguration interface {
-	Get(applicationName, profile string) ([]byte, error)
+	GetJson(applicationName, profile string) ([]byte, error)
+	GetProperties(applicationName, profile string) (string, error)
 }
 
 type Configuration struct {
@@ -22,22 +23,55 @@ func NewConfiguration(workingDirectory string) *Configuration {
 	}
 }
 
-func (svc *Configuration) Get(applicationName, profile string) ([]byte, error) {
+func (svc *Configuration) GetJson(applicationName, profile string) ([]byte, error) {
 
-	fileName := fmt.Sprintf("%s-%s.properties", applicationName, profile)
-	filePath := filepath.Join(svc.workingDirectory, fileName)
-
-	p, err := properties.LoadFile(filePath, properties.UTF8)
+	profileProperties, err := svc.getPropertiesObject(applicationName, profile)
 	if err != nil {
-		log.Fatalf("error loading properties -> %v", err)
+		log.Fatalf("error loading properties for application %v, profile %v -> %v",
+			applicationName, profile, err)
 		return nil, err
 	}
 
-	jsonObject, err := util.PropertiesToJson(p.Map())
+	jsonObject, err := util.PropertiesToJson(profileProperties.Map())
 	if err != nil {
-		log.Fatalf("error loading properties -> %v", err)
+		log.Fatalf("error converting properties to json for application %v, profile %v -> %v",
+			applicationName, profile, err)
 		return nil, err
 	}
 
 	return jsonObject, nil
+}
+
+func (svc *Configuration) GetProperties(applicationName, profile string) (string, error) {
+
+	p, err := svc.getPropertiesObject(applicationName, profile)
+	if err != nil {
+		log.Fatalf("error loading properties for application %v, profile %v -> %v",
+			applicationName, profile, err)
+		return "", err
+	}
+
+	return p.String(), nil
+}
+
+func (svc *Configuration) getPropertiesObject(applicationName, profile string) (*properties.Properties, error) {
+
+	profileConfigFilePath := svc.getFilePath(applicationName, profile)
+	defaultConfigFilePath := svc.getFilePath(applicationName, "")
+
+	filesToLoad := []string{profileConfigFilePath, defaultConfigFilePath}
+
+	return properties.LoadFiles(filesToLoad, properties.UTF8, true)
+}
+
+func (svc *Configuration) getFilePath(applicationName, profile string) string {
+	var fileName string
+
+	if profile == "" {
+		fileName = fmt.Sprintf("%s.properties", applicationName)
+	} else {
+		fileName = fmt.Sprintf("%s-%s.properties", applicationName, profile)
+	}
+
+	return filepath.Join(svc.workingDirectory, fileName)
 }
