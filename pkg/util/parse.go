@@ -1,9 +1,11 @@
 package util
 
 import (
-	"encoding/json"
+	"github.com/json-iterator/go"
 	"strings"
 )
+
+var json = jsoniter.ConfigCompatibleWithStandardLibrary
 
 func PropertiesToJson(propertiesMap map[string]string) ([]byte, error) {
 	resultJson := make(map[string]interface{})

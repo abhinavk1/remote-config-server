@@ -7,6 +7,7 @@ require (
 	github.com/go-git/go-git/v5 v5.0.0
 	github.com/go-http-utils/logger v0.0.0-20161128092850-f3a42dcdeae6
 	github.com/google/go-cmp v0.5.0 // indirect
+	github.com/json-iterator/go v1.1.10
 	github.com/magiconair/properties v1.8.3
 	golang.org/x/crypto v0.0.0-20200302210943-78000ba7a073
 	golang.org/x/sys v0.0.0-20200918174421-af09f7315aff // indirect
