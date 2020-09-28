@@ -56,10 +56,18 @@ func (svc *Configuration) GetProperties(applicationName, profile string) (string
 
 func (svc *Configuration) getPropertiesObject(applicationName, profile string) (*properties.Properties, error) {
 
+	var filesToLoad []string
 	profileConfigFilePath := svc.getFilePath(applicationName, profile)
-	defaultConfigFilePath := svc.getFilePath(applicationName, "")
 
-	filesToLoad := []string{profileConfigFilePath, defaultConfigFilePath}
+	if profile == "" {
+		filesToLoad = []string{profileConfigFilePath}
+	} else {
+
+		defaultConfigFilePath := svc.getFilePath(applicationName, "")
+		filesToLoad = []string{defaultConfigFilePath, profileConfigFilePath}
+	}
+
+	log.Printf("loading files -> %v", filesToLoad)
 
 	return properties.LoadFiles(filesToLoad, properties.UTF8, true)
 }

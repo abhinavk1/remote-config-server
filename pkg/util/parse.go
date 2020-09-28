@@ -2,7 +2,6 @@ package util
 
 import (
 	"encoding/json"
-	"fmt"
 	"strings"
 )
 
@@ -26,10 +25,10 @@ func createJsonObject(resultJson map[string]interface{}, propertyKey, propertyVa
 	currentKey := getFirstKey(propertyKey)
 	if len(currentKey) != 0 {
 
-		println(fmt.Sprintf("\ncurrentKey = %s, propertyKey = %s", currentKey, propertyKey))
+		//println(fmt.Sprintf("\ncurrentKey = %s, propertyKey = %s", currentKey, propertyKey))
 		runes := []rune(propertyKey)
 		subRightKey := string(runes[len(currentKey)+1 : len(propertyKey)])
-		fmt.Printf("\n subRightKey = %v", subRightKey)
+		//fmt.Printf("\n subRightKey = %v", subRightKey)
 
 		childJson := getJsonIfExists(resultJson, currentKey)
 		resultJson[currentKey] = createJsonObject(childJson, subRightKey, propertyValue)
@@ -53,8 +52,8 @@ func getJsonIfExists(parent map[string]interface{}, key string) map[string]inter
 func getFirstKey(fullKey string) string {
 	splittedKey := strings.Split(fullKey, ".")
 
-	fmt.Printf("\n fullKey = %v", fullKey)
-	fmt.Printf("\n splittedKey = %v", splittedKey)
+	//fmt.Printf("\n fullKey = %v", fullKey)
+	//fmt.Printf("\n splittedKey = %v", splittedKey)
 	if len(splittedKey) != 0 {
 		return splittedKey[0]
 	}
